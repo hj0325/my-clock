@@ -1,0 +1,2667 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>앱 사용 시간 분석 (10/27 - 11/02)</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --panel: rgba(255, 255, 255, 0.85);
+      --text: #1f2937;
+      --shadow: rgba(0, 0, 0, 0.08);
+      --brand-black: #111827;
+      --brand-mid: #4b5563;
+      --accent-primary: #3b82f6;
+      --accent-secondary: #10b981;
+      --accent-danger: #ef4444;
+      --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--font-main);
+      color: var(--text);
+      background: var(--bg);
+      min-height: 100vh;
+      letter-spacing: -0.01em;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .site-title {
+      margin: 0;
+      padding: 32px 24px 16px;
+      width: 100%;
+      text-align: center;
+      font-family: var(--font-display);
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--brand-black);
+      text-transform: none;
+    }
+
+    .page {
+      flex: 1;
+      width: 100%;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 0;
+    }
+
+    .chart-container {
+      position: relative;
+      width: min(90vmin, 900px);
+      height: min(90vmin, 900px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: visible;
+      margin: -16px auto 0;
+    }
+
+    .chart-container svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .game-toggle-button {
+      position: fixed;
+      top: 24px;
+      right: 32px;
+      padding: 10px 20px;
+      border-radius: 12px;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(8px);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      color: var(--brand-black);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+      transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+      z-index: 30;
+    }
+
+    .game-toggle-button:hover {
+      background: #ffffff;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    .game-toggle-button.secondary {
+      right: 140px;
+      background: transparent;
+      border-color: transparent;
+      box-shadow: none;
+    }
+
+    .game-toggle-button.secondary:hover {
+      background: rgba(0, 0, 0, 0.03);
+      box-shadow: none;
+    }
+
+    .side-panel {
+      width: 260px;
+      margin-left: 32px;
+      padding: 24px;
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(12px);
+      border-radius: 24px;
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      font-size: 13px;
+    }
+
+    .side-panel.hidden {
+      display: none;
+    }
+
+    .panel-heading {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--brand-mid);
+      opacity: 0.8;
+      margin-bottom: 4px;
+    }
+
+    .panel-score-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .panel-score-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--brand-mid);
+      letter-spacing: -0.01em;
+    }
+
+    .panel-score-value {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--brand-black);
+    }
+
+    .health-bar {
+      position: relative;
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.04);
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .health-bar-fill {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #ef4444, #f59e0b, #10b981);
+      transition: width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .point-rest {
+      fill: #60a5fa !important;
+      stroke: #2563eb !important;
+      opacity: 0.9 !important;
+    }
+
+    .point-deleted {
+      opacity: 0;
+      transform-origin: center;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      transform: scale(0.4);
+    }
+
+    .point-selected {
+      stroke: #2563eb !important;
+      stroke-width: 2.5 !important;
+    }
+
+    .selection-rect {
+      fill: rgba(59, 130, 246, 0.1);
+      stroke: rgba(59, 130, 246, 0.6);
+      stroke-dasharray: 4 4;
+      pointer-events: none;
+    }
+
+    .chart-container,
+    #chart {
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    .panel-submetric {
+      font-size: 12px;
+      color: var(--brand-mid);
+      opacity: 0.8;
+    }
+
+    .panel-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .panel-button {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      background: #ffffff;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      color: var(--brand-mid);
+      transition: all 0.2s ease;
+    }
+
+    .panel-button:hover {
+      background: #f9fafb;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      color: var(--brand-black);
+    }
+
+    .mission-status {
+      margin-top: 4px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--brand-mid);
+      background: rgba(0, 0, 0, 0.02);
+      padding: 12px;
+      border-radius: 12px;
+    }
+
+    .mission-status strong {
+      font-weight: 700;
+      color: var(--brand-black);
+    }
+
+    .mini-clock-wrapper {
+      position: fixed;
+      right: 32px;
+      bottom: 32px;
+      width: 200px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(12px);
+      border-radius: 24px;
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 18;
+    }
+
+    .mini-clock-wrapper.hidden {
+      display: none;
+    }
+
+    .mini-clock-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--brand-mid);
+      opacity: 0.8;
+      text-align: center;
+    }
+
+    #mini-clock {
+      width: 100%;
+      height: auto;
+    }
+
+    .mission-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 15;
+    }
+
+    .mission-overlay.hidden {
+      display: none;
+    }
+
+    .mission-badge {
+      padding: 12px 24px;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.95);
+      backdrop-filter: blur(4px);
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      box-shadow: 0 20px 40px rgba(16, 185, 129, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .point-menu {
+      position: absolute;
+      min-width: 160px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px);
+      color: var(--brand-black);
+      border-radius: 16px;
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15);
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      padding: 6px;
+      z-index: 25;
+      font-size: 12px;
+      display: none;
+    }
+
+    .point-menu button {
+      display: block;
+      width: 100%;
+      border: none;
+      background: transparent;
+      color: var(--brand-mid);
+      text-align: left;
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.1s ease;
+    }
+
+    .point-menu button[data-action="rest"] {
+      color: #3b82f6;
+    }
+
+    .point-menu button[data-action="delete"] {
+      color: #ef4444;
+    }
+
+    .point-menu button:hover {
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .tooltip {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(8px);
+      color: var(--brand-black);
+      padding: 12px 16px;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+      z-index: 20;
+      display: none;
+      pointer-events: none;
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      letter-spacing: -0.01em;
+    }
+
+    .tooltip .name {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: var(--brand-black);
+    }
+
+    .tooltip .row {
+      font-size: 12px;
+      color: var(--brand-mid);
+      margin: 2px 0;
+      white-space: nowrap;
+    }
+
+    svg#chart {
+      border-radius: 50%;
+      background: transparent;
+    }
+
+    text {
+      font-family: inherit;
+    }
+
+    /* Visualization Overlay Styles - Premium Overhaul */
+    .viz-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(245, 247, 250, 0.95);
+      backdrop-filter: blur(20px);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+      font-family: var(--font-display);
+    }
+
+    .viz-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .viz-header {
+      padding: 32px 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.8);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(10px);
+    }
+
+    .viz-title {
+      font-size: 32px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #111827 0%, #4b5563 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.02em;
+    }
+
+    .viz-close {
+      padding: 12px 24px;
+      border-radius: 12px;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      background: white;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--brand-black);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+      transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .viz-close:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+    }
+
+    .viz-content {
+      flex: 1;
+      padding: 40px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .viz-card {
+      background: white;
+      border-radius: 20px;
+      padding: 20px;
+      border: 1px solid rgba(0, 0, 0, 0.04);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+      display: flex;
+      flex-direction: column;
+      aspect-ratio: 1 / 1;
+      /* Force square aspect ratio */
+      min-height: 0;
+      /* Allow shrinking */
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      overflow: hidden;
+    }
+
+    .viz-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+      z-index: 1;
+    }
+
+    /* Remove wide class effect for uniformity */
+    .viz-card.wide {
+      grid-column: auto;
+    }
+
+    .viz-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .viz-card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--brand-black);
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .viz-card-subtitle {
+      display: none;
+      /* Hide subtitle for compact view */
+    }
+
+    .viz-chart-area {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 0;
+      padding: 10px;
+    }
+
+    .viz-chart-area svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    /* Premium Chart Styles */
+    .chart-path {
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: all 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .chart-rect {
+      transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+      rx: 6px;
+    }
+
+    .chart-circle {
+      transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .chart-text {
+      font-family: var(--font-main);
+      fill: var(--brand-mid);
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .chart-grid-line {
+      stroke: rgba(0, 0, 0, 0.04);
+      stroke-dasharray: 4 4;
+    }
+
+    /* Tooltip Enhancement */
+    .viz-tooltip {
+      position: absolute;
+      background: rgba(17, 24, 39, 0.9);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      pointer-events: none;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.2s;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .viz-tooltip.visible {
+      opacity: 1;
+    }
+  </style>
+</head>
+
+<body>
+  <header class="site-title">My Overwork Clock</header>
+  <button id="game-start-button" class="game-toggle-button">게임 시작</button>
+  <button id="viz-toggle-button" class="game-toggle-button secondary" style="right: 140px;">데이터 시각화</button>
+  <button id="game-end-button" class="game-toggle-button secondary hidden">게임 종료</button>
+  <div class="page">
+    <div class="chart-container">
+      <svg id="chart" width="880" height="880" viewBox="0 0 880 880" preserveAspectRatio="xMidYMid meet" role="img"
+        aria-label="앱 사용 시간대 원형 시각화"></svg>
+      <div id="tooltip" class="tooltip">
+        <div class="name"></div>
+        <div class="row date"></div>
+        <div class="row time"></div>
+        <div class="row duration"></div>
+        <div class="row category"></div>
+      </div>
+      <div id="mission-overlay" class="mission-overlay hidden">
+        <div class="mission-badge">
+          🎉 MISSION<span>성공</span>
+        </div>
+      </div>
+      <div id="point-menu" class="point-menu">
+        <button type="button" data-action="rest">휴식으로 바꾸기</button>
+        <button type="button" data-action="delete">삭제하기</button>
+        <button type="button" data-action="cancel">취소</button>
+      </div>
+    </div>
+    <aside id="side-panel" class="side-panel hidden">
+      <div class="panel-heading">Routine Clean-up</div>
+      <div class="panel-score-row">
+        <div class="panel-score-label">건강 루틴 점수</div>
+        <div id="health-score-display" class="panel-score-value">0</div>
+      </div>
+      <div class="health-bar">
+        <div id="health-bar-fill" class="health-bar-fill"></div>
+      </div>
+      <div class="panel-score-row" style="margin-top:10px;">
+        <div class="panel-score-label">오버워크 지수</div>
+        <div id="overwork-score-display" class="panel-score-value">0</div>
+      </div>
+      <div id="overwork-baseline" class="panel-submetric"></div>
+      <div class="panel-buttons">
+        <button id="reset-button" class="panel-button">원본으로 되돌리기</button>
+        <button id="mission-info-button" class="panel-button">미션 설명</button>
+      </div>
+      <div id="mission-status" class="mission-status">
+        미션: 건강 루틴 점수 <strong>80점</strong> 이상 달성
+      </div>
+    </aside>
+  </div>
+  <div id="mini-clock-wrapper" class="mini-clock-wrapper hidden">
+    <div class="mini-clock-title">정리한 과로 시계</div>
+    <svg id="mini-clock" viewBox="0 0 200 200" width="200" height="200" aria-label="최근 게임 결과 과로 시계"></svg>
+  </div>
+
+  <div id="viz-overlay" class="viz-overlay">
+    <header class="viz-header">
+      <div class="viz-title">Data Visualization</div>
+      <button id="viz-close-button" class="viz-close">닫기</button>
+    </header>
+    <div class="viz-content">
+      <!-- 1. Metric Cards -->
+      <div class="viz-card" style="min-height: 0;">
+        <div class="viz-card-header">
+          <div class="viz-card-title">Quick Insights</div>
+        </div>
+        <div id="viz-metrics" class="viz-chart-area"
+          style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;"></div>
+      </div>
+
+      <!-- 2. Bubble Chart -->
+      <div class="viz-card">
+        <div class="viz-card-header">
+          <div class="viz-card-title">App Ecosystem</div>
+        </div>
+        <div id="viz-bubble" class="viz-chart-area"></div>
+      </div>
+
+      <!-- 3. Bar Chart -->
+      <div class="viz-card">
+        <div class="viz-card-header">
+          <div class="viz-card-title">Category Breakdown</div>
+        </div>
+        <div id="viz-bar" class="viz-chart-area"></div>
+      </div>
+
+      <!-- 4. Radial Chart -->
+      <div class="viz-card">
+        <div class="viz-card-header">
+          <div class="viz-card-title">24-Hour Cycle</div>
+        </div>
+        <div id="viz-radial" class="viz-chart-area"></div>
+      </div>
+
+      <!-- 5. Pie Chart -->
+      <div class="viz-card">
+        <div class="viz-card-header">
+          <div class="viz-card-title">Category Share</div>
+        </div>
+        <div id="viz-pie" class="viz-chart-area"></div>
+      </div>
+
+      <!-- 6. Donut Chart -->
+      <div class="viz-card">
+        <div class="viz-card-header">
+          <div class="viz-card-title">Top Apps Share</div>
+        </div>
+        <div id="viz-donut" class="viz-chart-area"></div>
+      </div>
+
+      <!-- 7. Line Chart -->
+      <div class="viz-card">
+        <div class="viz-card-header">
+          <div class="viz-card-title">Daily Usage Trend</div>
+        </div>
+        <div id="viz-line" class="viz-chart-area"></div>
+      </div>
+
+      <!-- 8. Area Chart -->
+      <div class="viz-card">
+        <div class="viz-card-header">
+          <div class="viz-card-title">Cumulative Usage</div>
+        </div>
+        <div id="viz-area" class="viz-chart-area"></div>
+      </div>
+
+      <!-- 9. Heatmap -->
+      <div class="viz-card">
+        <div class="viz-card-header">
+          <div class="viz-card-title">Activity Heatmap</div>
+        </div>
+        <div id="viz-heatmap" class="viz-chart-area"></div>
+      </div>
+
+      <!-- 10. Scatter Plot -->
+      <div class="viz-card">
+        <div class="viz-card-header">
+          <div class="viz-card-title">Session Analysis</div>
+        </div>
+        <div id="viz-scatter" class="viz-chart-area"></div>
+      </div>
+
+      <!-- 11. Treemap -->
+      <div class="viz-card">
+        <div class="viz-card-header">
+          <div class="viz-card-title">Usage Hierarchy</div>
+        </div>
+        <div id="viz-treemap" class="viz-chart-area"></div>
+      </div>
+
+      <!-- 12. Stacked Bar Chart -->
+      <div class="viz-card">
+        <div class="viz-card-header">
+          <div class="viz-card-title">Daily Category Mix</div>
+        </div>
+        <div id="viz-stacked" class="viz-chart-area"></div>
+      </div>
+
+      <!-- 13. Radar Chart -->
+      <div class="viz-card">
+        <div class="viz-card-header">
+          <div class="viz-card-title">Category Balance</div>
+        </div>
+        <div id="viz-radar" class="viz-chart-area"></div>
+      </div>
+
+      <!-- 14. Lollipop Chart -->
+      <div class="viz-card">
+        <div class="viz-card-header">
+          <div class="viz-card-title">Top 10 Apps</div>
+        </div>
+        <div id="viz-lollipop" class="viz-chart-area"></div>
+      </div>
+
+      <!-- 15. Polar Area Chart -->
+      <div class="viz-card">
+        <div class="viz-card-header">
+          <div class="viz-card-title">Hourly Volume</div>
+        </div>
+        <div id="viz-polar" class="viz-chart-area"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    // 원본 앱 사용 이벤트 (앱사용_상세분석.xlsx 기반)
+    const rawUsageEvents = [
+      { date: '2024-10-27', app: 'Google Chrome', start: '2024-10-27T01:30', duration: 145, category: '기타' },
+      { date: '2024-10-27', app: 'Cursor', start: '2024-10-27T03:00', duration: 142, category: '생산성 및 금융' },
+      { date: '2024-10-27', app: 'Figma', start: '2024-10-27T04:30', duration: 76, category: '생산성 및 금융' },
+      { date: '2024-10-27', app: '메모', start: '2024-10-27T14:00', duration: 49, category: '생산성 및 금융' },
+      { date: '2024-10-27', app: '카카오톡', start: '2024-10-27T16:00', duration: 47, category: '소셜 미디어' },
+      { date: '2024-10-28', app: 'Cursor', start: '2024-10-28T13:30', duration: 130, category: '생산성 및 금융' },
+      { date: '2024-10-28', app: 'Google Chrome', start: '2024-10-28T15:00', duration: 102, category: '기타' },
+      { date: '2024-10-28', app: 'Figma', start: '2024-10-28T16:30', duration: 55, category: '생산성 및 금융' },
+      { date: '2024-10-28', app: '시스템 설정', start: '2024-10-28T19:12', duration: 32, category: '소셜 미디어' },
+      { date: '2024-10-28', app: '메모', start: '2024-10-28T20:24', duration: 30, category: '생산성 및 금융' },
+      { date: '2024-10-28', app: '카카오톡', start: '2024-10-28T21:36', duration: 16, category: '소셜 미디어' },
+      { date: '2024-10-28', app: '미리보기', start: '2024-10-28T22:48', duration: 10, category: '소셜 미디어' },
+      { date: '2024-10-29', app: 'Figma', start: '2024-10-29T13:12', duration: 209, category: '생산성 및 금융' },
+      { date: '2024-10-29', app: 'Google Chrome', start: '2024-10-29T14:24', duration: 125, category: '기타' },
+      { date: '2024-10-29', app: 'YouTube', start: '2024-10-29T15:36', duration: 54, category: '엔터테인먼트' },
+      { date: '2024-10-29', app: '스티커', start: '2024-10-29T16:48', duration: 52, category: '기타' },
+      { date: '2024-10-30', app: 'Figma', start: '2024-10-30T13:30', duration: 209, category: '생산성 및 금융' },
+      { date: '2024-10-30', app: 'Google Chrome', start: '2024-10-30T15:00', duration: 125, category: '기타' },
+      { date: '2024-10-30', app: '카카오톡', start: '2024-10-30T16:30', duration: 56, category: '소셜 미디어' },
+      { date: '2024-10-30', app: '시스템 설정', start: '2024-10-30T19:00', duration: 49, category: '기타' },
+      { date: '2024-10-30', app: 'Adobe Illustrator', start: '2024-10-30T20:00', duration: 33, category: '생산성 및 금융' },
+      { date: '2024-10-30', app: '메모', start: '2024-10-30T21:00', duration: 30, category: '생산성 및 금융' },
+      { date: '2024-10-30', app: 'YouTube', start: '2024-10-30T22:00', duration: 19, category: '엔터테인먼트' },
+      { date: '2024-10-30', app: 'Safari', start: '2024-10-30T23:00', duration: 19, category: '기타' },
+      { date: '2024-10-31', app: 'Figma', start: '2024-10-31T13:12', duration: 210, category: '생산성 및 금융' },
+      { date: '2024-10-31', app: 'Cursor', start: '2024-10-31T14:24', duration: 156, category: '생산성 및 금융' },
+      { date: '2024-10-31', app: 'Google Chrome', start: '2024-10-31T15:36', duration: 77, category: '기타' },
+      { date: '2024-10-31', app: '카카오톡', start: '2024-10-31T16:48', duration: 76, category: '소셜 미디어' },
+      { date: '2024-10-31', app: '미리보기', start: '2024-10-31T18:45', duration: 45, category: '생산성 및 금융' },
+      { date: '2024-10-31', app: '기타', start: '2024-10-31T19:30', duration: 43, category: '생산성 및 금융' },
+      { date: '2024-10-31', app: '시스템 설정', start: '2024-10-31T20:15', duration: 39, category: '생산성 및 금융' },
+      { date: '2024-10-31', app: 'Adobe Illustrator', start: '2024-10-31T21:00', duration: 33, category: '생산성 및 금융' },
+      { date: '2024-10-31', app: 'Finder', start: '2024-10-31T21:45', duration: 25, category: '생산성 및 금융' },
+      { date: '2024-10-31', app: 'YouTube', start: '2024-10-31T22:30', duration: 19, category: '엔터테인먼트' },
+      { date: '2024-10-31', app: '메모', start: '2024-10-31T23:15', duration: 10, category: '생산성 및 금융' },
+      { date: '2024-11-01', app: 'Cursor', start: '2024-11-01T18:45', duration: 169, category: '생산성 및 금융' },
+      { date: '2024-11-01', app: 'Google Chrome', start: '2024-11-01T19:30', duration: 72, category: '기타' },
+      { date: '2024-11-01', app: 'Figma', start: '2024-11-01T20:15', duration: 46, category: '생산성 및 금융' },
+      { date: '2024-11-01', app: '카카오톡', start: '2024-11-01T21:00', duration: 46, category: '소셜 미디어' },
+      { date: '2024-11-01', app: '메모', start: '2024-11-01T21:45', duration: 36, category: '생산성 및 금융' },
+      { date: '2024-11-01', app: '스티커', start: '2024-11-01T22:30', duration: 33, category: '기타' },
+      { date: '2024-11-01', app: '미리보기', start: '2024-11-01T23:15', duration: 22, category: '기타' },
+      { date: '2024-11-02', app: 'Figma', start: '2024-11-02T03:00', duration: 172, category: '생산성 및 금융' },
+      { date: '2024-11-02', app: 'Google Chrome', start: '2024-11-02T14:00', duration: 114, category: '기타' },
+      { date: '2024-11-02', app: '카카오톡', start: '2024-11-02T16:00', duration: 68, category: '소셜 미디어' },
+      { date: '2024-11-03', app: 'Figma', start: '2024-11-03T03:00', duration: 336, category: '생산성 및 금융' },
+      { date: '2024-11-03', app: 'Google Chrome', start: '2024-11-03T13:30', duration: 72, category: '기타' },
+      { date: '2024-11-03', app: '카카오톡', start: '2024-11-03T15:00', duration: 40, category: '소셜 미디어' },
+      { date: '2024-11-03', app: 'Claude', start: '2024-11-03T16:30', duration: 27, category: '소셜 미디어' },
+      { date: '2024-11-03', app: 'Finder', start: '2024-11-03T19:30', duration: 18, category: '생산성 및 금융' },
+      { date: '2024-11-03', app: 'Cursor', start: '2024-11-03T21:00', duration: 16, category: '생산성 및 금융' },
+      { date: '2024-11-03', app: 'YouTube', start: '2024-11-03T22:30', duration: 10, category: '엔터테인먼트' },
+      { date: '2024-11-04', app: 'Google Chrome', start: '2024-11-04T19:00', duration: 125, category: '기타' },
+      { date: '2024-11-04', app: 'Figma', start: '2024-11-04T20:00', duration: 59, category: '생산성 및 금융' },
+      { date: '2024-11-04', app: '카카오톡', start: '2024-11-04T21:00', duration: 53, category: '소셜 미디어' },
+      { date: '2024-11-04', app: 'Cursor', start: '2024-11-04T22:00', duration: 50, category: '생산성 및 금융' },
+      { date: '2024-11-04', app: 'Finder', start: '2024-11-04T23:00', duration: 25, category: '생산성 및 금융' },
+      { date: '2024-11-05', app: 'Figma', start: '2024-11-05T03:00', duration: 130, category: '생산성 및 금융' },
+      { date: '2024-11-05', app: 'Finder', start: '2024-11-05T19:00', duration: 52, category: '생산성 및 금융' },
+      { date: '2024-11-05', app: 'Google Chrome', start: '2024-11-05T20:00', duration: 43, category: '기타' },
+      { date: '2024-11-05', app: '카카오톡', start: '2024-11-05T21:00', duration: 29, category: '소셜 미디어' },
+      { date: '2024-11-05', app: 'YouTube', start: '2024-11-05T22:00', duration: 10, category: '엔터테인먼트' },
+      { date: '2024-11-05', app: 'Safari', start: '2024-11-05T23:00', duration: 10, category: '기타' },
+      { date: '2024-11-06', app: 'Figma', start: '2024-11-06T13:12', duration: 319, category: '생산성 및 금융' },
+      { date: '2024-11-06', app: '카카오톡', start: '2024-11-06T14:24', duration: 142, category: '소셜 미디어' },
+      { date: '2024-11-06', app: 'Cursor', start: '2024-11-06T15:36', duration: 88, category: '생산성 및 금융' },
+      { date: '2024-11-06', app: 'YouTube', start: '2024-11-06T16:48', duration: 71, category: '엔터테인먼트' },
+      { date: '2024-11-06', app: 'Google Chrome', start: '2024-11-06T19:12', duration: 43, category: '기타' },
+      { date: '2024-11-06', app: 'Safari', start: '2024-11-06T20:24', duration: 25, category: '기타' },
+      { date: '2024-11-06', app: '미리보기', start: '2024-11-06T21:36', duration: 11, category: '소셜 미디어' },
+      { date: '2024-11-06', app: '메모', start: '2024-11-06T22:48', duration: 7, category: '생산성 및 금융' },
+      { date: '2024-11-07', app: 'Cursor', start: '2024-11-07T13:00', duration: 244, category: '생산성 및 금융' },
+      { date: '2024-11-07', app: 'Google Chrome', start: '2024-11-07T14:00', duration: 227, category: '기타' },
+      { date: '2024-11-07', app: '카카오톡', start: '2024-11-07T15:00', duration: 145, category: '소셜 미디어' },
+      { date: '2024-11-07', app: 'Figma', start: '2024-11-07T16:00', duration: 132, category: '생산성 및 금융' },
+      { date: '2024-11-07', app: 'YouTube', start: '2024-11-07T17:00', duration: 77, category: '엔터테인먼트' },
+      { date: '2024-11-07', app: '메모', start: '2024-11-07T19:30', duration: 49, category: '생산성 및 금융' },
+      { date: '2024-11-07', app: '시스템 설정', start: '2024-11-07T21:00', duration: 20, category: '소셜 미디어' },
+      { date: '2024-11-07', app: 'Safari', start: '2024-11-07T22:30', duration: 18, category: '기타' },
+      { date: '2024-11-08', app: 'Figma', start: '2024-11-08T02:00', duration: 151, category: '생산성 및 금융' },
+      { date: '2024-11-08', app: 'Adobe InDesign', start: '2024-11-08T04:00', duration: 47, category: '생산성 및 금융' },
+      { date: '2024-11-08', app: 'Adobe Illustrator', start: '2024-11-08T09:00', duration: 20, category: '생산성 및 금융' },
+      { date: '2024-11-08', app: 'Safari', start: '2024-11-08T14:00', duration: 56, category: '기타' },
+      { date: '2024-11-08', app: 'Google Chrome', start: '2024-11-08T16:00', duration: 23, category: '기타' },
+      { date: '2024-11-08', app: '카카오톡', start: '2024-11-08T20:00', duration: 19, category: '소셜 미디어' },
+      { date: '2024-11-08', app: 'Finder', start: '2024-11-08T22:00', duration: 7, category: '생산성 및 금융' },
+      { date: '2024-11-09', app: 'Google Chrome', start: '2024-11-09T02:00', duration: 160, category: '기타' },
+      { date: '2024-11-09', app: 'Cursor', start: '2024-11-09T04:00', duration: 149, category: '생산성 및 금융' },
+      { date: '2024-11-09', app: '카카오톡', start: '2024-11-09T13:30', duration: 84, category: '소셜 미디어' },
+      { date: '2024-11-09', app: 'Adobe InDesign', start: '2024-11-09T15:00', duration: 46, category: '생산성 및 금융' },
+      { date: '2024-11-09', app: 'Claude', start: '2024-11-09T16:30', duration: 11, category: '소셜 미디어' },
+      { date: '2024-11-09', app: 'Finder', start: '2024-11-09T20:00', duration: 10, category: '생산성 및 금융' },
+      { date: '2024-11-09', app: 'Figma', start: '2024-11-09T22:00', duration: 8, category: '생산성 및 금융' },
+      { date: '2024-11-10', app: 'Google Chrome', start: '2024-11-10T02:00', duration: 150, category: '기타' },
+      { date: '2024-11-10', app: 'Cursor', start: '2024-11-10T04:00', duration: 100, category: '생산성 및 금융' },
+      { date: '2024-11-10', app: 'Google Chrome', start: '2024-11-10T13:12', duration: 113, category: '기타' },
+      { date: '2024-11-10', app: '카카오톡', start: '2024-11-10T14:24', duration: 80, category: '소셜 미디어' },
+      { date: '2024-11-10', app: 'YouTube', start: '2024-11-10T15:36', duration: 52, category: '엔터테인먼트' },
+      { date: '2024-11-10', app: 'Figma', start: '2024-11-10T16:48', duration: 47, category: '생산성 및 금융' },
+      { date: '2024-11-10', app: 'Cursor', start: '2024-11-10T19:12', duration: 153, category: '생산성 및 금융' },
+      { date: '2024-11-10', app: '카카오톡', start: '2024-11-10T20:24', duration: 48, category: '소셜 미디어' },
+      { date: '2024-11-10', app: '메모', start: '2024-11-10T21:36', duration: 28, category: '생산성 및 금융' },
+      { date: '2024-11-10', app: 'Finder', start: '2024-11-10T22:48', duration: 24, category: '생산성 및 금융' },
+      { date: '2024-11-11', app: '카카오톡', start: '2024-11-11T02:00', duration: 100, category: '소셜 미디어' },
+      { date: '2024-11-11', app: 'Cursor', start: '2024-11-11T04:00', duration: 110, category: '생산성 및 금융' },
+      { date: '2024-11-11', app: '카카오톡', start: '2024-11-11T08:00', duration: 45, category: '소셜 미디어' },
+      { date: '2024-11-11', app: 'YouTube', start: '2024-11-11T10:00', duration: 21, category: '엔터테인먼트' },
+      { date: '2024-11-11', app: 'Google Chrome', start: '2024-11-11T14:00', duration: 68, category: '기타' },
+      { date: '2024-11-11', app: 'Figma', start: '2024-11-11T16:00', duration: 9, category: '생산성 및 금융' },
+      { date: '2024-11-12', app: 'Figma', start: '2024-11-12T02:00', duration: 100, category: '생산성 및 금융' },
+      { date: '2024-11-12', app: 'Google Chrome', start: '2024-11-12T04:00', duration: 84, category: '기타' },
+      { date: '2024-11-12', app: 'Figma', start: '2024-11-12T13:00', duration: 184, category: '생산성 및 금융' },
+      { date: '2024-11-12', app: 'Google Chrome', start: '2024-11-12T14:00', duration: 151, category: '기타' },
+      { date: '2024-11-12', app: '카카오톡', start: '2024-11-12T15:00', duration: 108, category: '소셜 미디어' },
+      { date: '2024-11-12', app: 'Adobe Photoshop', start: '2024-11-12T16:00', duration: 44, category: '생산성 및 금융' },
+      { date: '2024-11-12', app: 'Cursor', start: '2024-11-12T17:00', duration: 12, category: '생산성 및 금융' },
+      { date: '2024-11-12', app: 'Finder', start: '2024-11-12T20:00', duration: 8, category: '생산성 및 금융' },
+      { date: '2024-11-12', app: 'Safari', start: '2024-11-12T22:00', duration: 3, category: '기타' },
+      { date: '2024-11-13', app: 'Figma', start: '2024-11-13T01:30', duration: 100, category: '생산성 및 금융' },
+      { date: '2024-11-13', app: 'Google Chrome', start: '2024-11-13T03:00', duration: 80, category: '기타' },
+      { date: '2024-11-13', app: 'Cursor', start: '2024-11-13T04:30', duration: 47, category: '생산성 및 금융' },
+      { date: '2024-11-13', app: 'Figma', start: '2024-11-13T12:51', duration: 227, category: '생산성 및 금융' },
+      { date: '2024-11-13', app: 'Google Chrome', start: '2024-11-13T13:43', duration: 151, category: '기타' },
+      { date: '2024-11-13', app: 'Cursor', start: '2024-11-13T14:34', duration: 99, category: '생산성 및 금융' },
+      { date: '2024-11-13', app: '카카오톡', start: '2024-11-13T15:26', duration: 85, category: '소셜 미디어' },
+      { date: '2024-11-13', app: 'Adobe Illustrator', start: '2024-11-13T16:17', duration: 31, category: '생산성 및 금융' },
+      { date: '2024-11-13', app: 'YouTube', start: '2024-11-13T17:09', duration: 30, category: '엔터테인먼트' },
+      { date: '2024-11-13', app: 'Finder', start: '2024-11-13T20:00', duration: 24, category: '생산성 및 금융' },
+      { date: '2024-11-13', app: 'Zoom', start: '2024-11-13T22:00', duration: 22, category: '생산성 및 금융' },
+      { date: '2024-11-14', app: 'Cursor', start: '2024-11-14T01:12', duration: 218, category: '생산성 및 금융' },
+      { date: '2024-11-14', app: 'Google Chrome', start: '2024-11-14T02:24', duration: 153, category: '기타' },
+      { date: '2024-11-14', app: '카카오톡', start: '2024-11-14T03:36', duration: 98, category: '소셜 미디어' },
+      { date: '2024-11-14', app: 'Figma', start: '2024-11-14T04:48', duration: 70, category: '생산성 및 금융' },
+      { date: '2024-11-14', app: 'YouTube', start: '2024-11-14T19:12', duration: 83, category: '엔터테인먼트' },
+      { date: '2024-11-14', app: 'GitHub Desktop', start: '2024-11-14T20:24', duration: 20, category: '엔터테인먼트' },
+      { date: '2024-11-14', app: 'Finder', start: '2024-11-14T21:36', duration: 6, category: '생산성 및 금융' },
+      { date: '2024-11-14', app: '메모', start: '2024-11-14T22:48', duration: 3, category: '생산성 및 금융' }
+    ];
+
+    // ----- 시간 밀도 기반 워핑: 비어 있는 시간대를 압축해 과로감을 강화 -----
+    const MINUTES_PER_DAY = 24 * 60;
+    const baseDensity = new Array(MINUTES_PER_DAY).fill(0);
+
+    rawUsageEvents.forEach(ev => {
+      const d = new Date(ev.start);
+      const m = d.getHours() * 60 + d.getMinutes();
+      const dur = Number(ev.duration) || 0;
+      // 각 분에서의 "과로 감각"을 duration 기반으로 누적
+      baseDensity[m] += Math.max(dur, 10);
+    });
+
+    // 간단한 이동 평균으로 밀도를 부드럽게
+    const smoothDensity = baseDensity.slice();
+    const smoothWindow = 15; // ±15분
+    for (let m = 0; m < MINUTES_PER_DAY; m++) {
+      let acc = 0;
+      let count = 0;
+      for (let k = -smoothWindow; k <= smoothWindow; k++) {
+        const idx = m + k;
+        if (idx >= 0 && idx < MINUTES_PER_DAY) {
+          acc += baseDensity[idx];
+          count++;
+        }
+      }
+      smoothDensity[m] = acc / (count || 1);
+    }
+
+    // 완전히 비어 있는 구간도 약간의 각도는 가지도록 epsilon 추가
+    const epsilonDensity = 1;
+    let totalDensity = 0;
+    for (let m = 0; m < MINUTES_PER_DAY; m++) {
+      smoothDensity[m] += epsilonDensity;
+      totalDensity += smoothDensity[m];
+    }
+
+    const warpedMinuteFraction = new Array(MINUTES_PER_DAY);
+    let cumulative = 0;
+    for (let m = 0; m < MINUTES_PER_DAY; m++) {
+      cumulative += smoothDensity[m];
+      warpedMinuteFraction[m] = cumulative / totalDensity; // 0~1
+    }
+
+    const getWarpedFractionForDate = (isoString) => {
+      const d = new Date(isoString);
+      const m = d.getHours() * 60 + d.getMinutes();
+      const clamped = Math.max(0, Math.min(MINUTES_PER_DAY - 1, m));
+      return warpedMinuteFraction[clamped];
+    };
+
+    // 긴 사용 시간을 더 촘촘한 세션으로 쪼개어 과로감을 극대화
+    const CHUNK_MINUTES = 30; // 30분 단위로 분할 (15로 줄이면 더 빽빽해짐)
+
+    const usageEvents = rawUsageEvents.flatMap(event => {
+      const total = Number(event.duration) || 0;
+      if (total <= 0) return [];
+
+      const chunks = Math.max(1, Math.round(total / CHUNK_MINUTES));
+      if (chunks === 1) return [event];
+
+      const chunkDur = total / chunks;
+      const startDate = new Date(event.start);
+
+      // 전체 구간을 chunks 개의 시작점으로 균등 분할
+      const spanMinutes = total - chunkDur;
+      const step = chunks > 1 ? spanMinutes / (chunks - 1) : 0;
+
+      const segments = [];
+      for (let i = 0; i < chunks; i++) {
+        const offsetMin = step * i;
+        const t = new Date(startDate.getTime() + offsetMin * 60 * 1000);
+        const hh = String(t.getHours()).padStart(2, '0');
+        const mm = String(t.getMinutes()).padStart(2, '0');
+
+        segments.push({
+          date: event.date,
+          app: event.app,
+          start: `${event.date}T${hh}:${mm}`,
+          duration: chunkDur,
+          category: event.category
+        });
+      }
+      return segments;
+    });
+
+    // 날짜별·앱별 총 사용 시간을 계산해, 날짜마다 가장 많이 사용한 앱을 선택
+    const dateAppTotals = rawUsageEvents.reduce((acc, ev) => {
+      const dateKey = ev.date;
+      const appKey = ev.app;
+      const dur = Number(ev.duration) || 0;
+      if (!acc[dateKey]) acc[dateKey] = {};
+      acc[dateKey][appKey] = (acc[dateKey][appKey] || 0) + dur;
+      return acc;
+    }, {});
+
+    const topAppByDate = new Map();
+    Object.entries(dateAppTotals).forEach(([date, appMap]) => {
+      let topApp = null;
+      let topTotal = -Infinity;
+      Object.entries(appMap).forEach(([app, total]) => {
+        if (total > topTotal) {
+          topTotal = total;
+          topApp = app;
+        }
+      });
+      topAppByDate.set(date, topApp);
+    });
+
+    // 날짜별로, 그 날짜에서 가장 많이 사용한 앱의 대표 이벤트(가장 긴 조각)를 하나만 강조
+    const highlightByDate = new Map();
+    usageEvents.forEach(ev => {
+      const topApp = topAppByDate.get(ev.date);
+      if (!topApp || ev.app !== topApp) return;
+      const current = highlightByDate.get(ev.date);
+      if (!current || ev.duration > current.duration) {
+        highlightByDate.set(ev.date, ev);
+      }
+    });
+
+    // 포인트/게임 상태 --------------------------------------
+    const points = usageEvents.map((ev, idx) => {
+      const startDate = new Date(ev.start);
+      const hour = startDate.getHours() + startDate.getMinutes() / 60;
+      const isNightWork = hour < 6 || hour >= 22;
+      return {
+        id: idx,
+        date: ev.date,
+        app: ev.app,
+        start: ev.start,
+        duration: ev.duration,
+        category: ev.category,
+        hour,
+        isNightWork,
+        status: 'work'
+      };
+    });
+    const originalPoints = points.map(p => ({ ...p }));
+
+    const getPenaltyForHour = (hour) => {
+      if (hour >= 0 && hour < 6) return 3;
+      if (hour >= 6 && hour < 9) return 2;
+      if (hour >= 9 && hour < 22) return 1;
+      return 2;
+    };
+
+    const calculateOverworkScore = (pointList) =>
+      pointList.reduce((sum, p) => {
+        if (p.status !== 'work') return sum;
+        return sum + getPenaltyForHour(p.hour);
+      }, 0);
+
+    let inGameMode = false;
+    let overworkScore = calculateOverworkScore(points);
+    const initialOverworkScore = overworkScore;
+
+    const categoryStyles = {
+      '생산성 및 금융': { fill: '#3b82f6', stroke: 'rgba(59, 130, 246, 0.6)' },
+      '기타': { fill: '#9ca3af', stroke: 'rgba(156, 163, 175, 0.6)' },
+      '소셜 미디어': { fill: '#f59e0b', stroke: 'rgba(245, 158, 11, 0.6)' },
+      '엔터테인먼트': { fill: '#ec4899', stroke: 'rgba(236, 72, 153, 0.6)' }
+    };
+
+    const getStyleForCategory = (category) => categoryStyles[category] || { fill: '#d1d5db', stroke: 'rgba(209, 213, 219, 0.6)' };
+
+    const svg = document.getElementById('chart');
+    const viewBox = svg.viewBox && svg.viewBox.baseVal;
+    const width = viewBox && viewBox.width ? viewBox.width : Number(svg.getAttribute('width'));
+    const height = viewBox && viewBox.height ? viewBox.height : Number(svg.getAttribute('height'));
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const outerRadius = Math.min(width, height) / 2 - 80;
+    const innerRadius = 110;
+
+    const parseDate = (value) => new Date(value);
+    const uniqueDates = Array.from(new Set(usageEvents.map(d => d.date))).sort((a, b) => parseDate(a) - parseDate(b));
+    const ringSpacing = uniqueDates.length > 1 ? (outerRadius - innerRadius) / (uniqueDates.length - 1) : 0;
+    const hourAngles = Array.from({ length: 24 }, (_, hour) => hour);
+
+    const svgPoint = svg.createSVGPoint();
+    const clientToSvg = (evt) => {
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return { x: 0, y: 0 };
+      svgPoint.x = evt.clientX;
+      svgPoint.y = evt.clientY;
+      const pt = svgPoint.matrixTransform(ctm.inverse());
+      return { x: pt.x, y: pt.y };
+    };
+
+    const tooltip = document.getElementById('tooltip');
+    const tooltipName = tooltip.querySelector('.name');
+    const tooltipDate = tooltip.querySelector('.date');
+    const tooltipTime = tooltip.querySelector('.time');
+    const tooltipDuration = tooltip.querySelector('.duration');
+    const tooltipCat = tooltip.querySelector('.category');
+
+    const toAngle = (dateString) => {
+      // 밀도 기반 워핑된 시각으로 각도를 계산
+      const fraction = getWarpedFractionForDate(dateString); // 0~1
+      return fraction * Math.PI * 2 - Math.PI / 2;
+    };
+
+    const getRadius = (date) => {
+      if (uniqueDates.length === 1) return innerRadius;
+      const idx = uniqueDates.indexOf(date);
+      return innerRadius + idx * ringSpacing;
+    };
+
+    const polarToCartesian = (angle, radius) => ({
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius
+    });
+
+    const append = (tag, attrs = {}, parent = svg) => {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
+      parent.appendChild(el);
+      return el;
+    };
+
+    const gridGroup = append('g', { 'stroke-linecap': 'round' });
+    const ringGroup = append('g', {}, gridGroup);
+    const hourGroup = append('g', {}, gridGroup);
+    const markerGroup = append('g', { opacity: '0.9' });
+
+    const baseRingCount = uniqueDates.length * 4 + 24;
+    for (let i = 0; i <= baseRingCount; i++) {
+      const radius = innerRadius + (i / baseRingCount) * (outerRadius - innerRadius);
+      append('circle', {
+        cx: centerX,
+        cy: centerY,
+        r: radius,
+        fill: 'none',
+        stroke: i % 4 === 0 ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0.03)',
+        'stroke-width': i % 4 === 0 ? '1' : '0.5',
+        'stroke-dasharray': i % 4 === 0 ? 'none' : '2 8'
+      }, ringGroup);
+    }
+
+    const dayLinkGroup = append('g', { fill: 'none' });
+    const connectorGroup = append('g', { stroke: '#e5e7eb', 'stroke-width': '1.1', 'stroke-linecap': 'round', opacity: '0.8' });
+    const dataGroup = append('g');
+    const connectorLines = [];
+    const pointCircles = [];
+    const selectionRect = append('rect', {
+      class: 'selection-rect',
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      style: 'display:none;'
+    });
+
+    hourAngles.forEach(hour => {
+      const angle = (hour / 24) * Math.PI * 2 - Math.PI / 2;
+      const { x, y } = polarToCartesian(angle, outerRadius);
+      append('line', {
+        x1: centerX,
+        y1: centerY,
+        x2: x,
+        y2: y,
+        stroke: hour % 3 === 0 ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.05)',
+        'stroke-width': hour % 3 === 0 ? '1.5' : '0.8',
+        'stroke-dasharray': hour % 3 === 0 ? 'none' : '4 10',
+        opacity: hour % 3 === 0 ? '0.8' : '0.5'
+      }, hourGroup);
+
+      if (hour % 3 === 0) {
+        const labelPoint = polarToCartesian(angle, outerRadius + 30);
+        const text = append('text', {
+          x: labelPoint.x,
+          y: labelPoint.y,
+          'text-anchor': 'middle',
+          'dominant-baseline': 'middle',
+          fill: 'var(--brand-mid)',
+          'font-size': '12',
+          opacity: '0.8',
+          'font-weight': '600',
+          'letter-spacing': '-0.01em'
+        }, hourGroup);
+        text.textContent = hour === 0 ? '0시' : `${hour}시`;
+      }
+    });
+
+    uniqueDates.forEach((date, index) => {
+      const radius = getRadius(date);
+      const labelPoint = polarToCartesian(Math.PI / 2, radius + 4);
+      const text = append('text', {
+        x: labelPoint.x,
+        y: labelPoint.y + 16,
+        'text-anchor': 'middle',
+        fill: 'var(--brand-mid)',
+        'font-size': '11',
+        'font-weight': index === uniqueDates.length - 1 ? '700' : '500',
+        opacity: index === uniqueDates.length - 1 ? '1' : '0.6',
+        'letter-spacing': '0.02em'
+      }, markerGroup);
+      const dateLabel = new Date(date);
+      text.textContent = `${dateLabel.getMonth() + 1}/${dateLabel.getDate()}`;
+    });
+
+    append('circle', {
+      cx: centerX,
+      cy: centerY,
+      r: innerRadius - 36,
+      fill: 'rgba(0,0,0,0.02)'
+    }, gridGroup);
+
+    const pointsByDate = new Map();
+
+    points.forEach(point => {
+      const angle = toAngle(point.start);
+      const baseRadius = getRadius(point.date);
+      const radius = baseRadius;
+      const { x, y } = polarToCartesian(angle, radius);
+      const baseSize = Math.max(3, Math.min(13, Math.sqrt(point.duration) * 1.05));
+      const isHighlight = highlightByDate.get(point.date) && highlightByDate.get(point.date).start === point.start && highlightByDate.get(point.date).app === point.app;
+      const size = isHighlight ? baseSize * 2.1 : baseSize;
+      const style = getStyleForCategory(point.category);
+
+      const baseStrokeWidth = size > 7 ? 1.2 : 0.8;
+      const circle = append('circle', {
+        cx: x,
+        cy: y,
+        r: size,
+        fill: isHighlight ? '#ef4444' : style.fill,
+        opacity: isHighlight ? '1' : '0.85',
+        stroke: isHighlight ? '#ef4444' : style.stroke,
+        'stroke-width': baseStrokeWidth
+      }, dataGroup);
+
+      circle.dataset.id = String(point.id);
+      circle.dataset.baseFill = circle.getAttribute('fill');
+      circle.dataset.baseStroke = circle.getAttribute('stroke');
+      circle.dataset.baseOpacity = circle.getAttribute('opacity');
+      circle.dataset.baseR = circle.getAttribute('r');
+      circle.dataset.app = point.app;
+      circle.dataset.date = point.date;
+      circle.dataset.start = point.start;
+      circle.dataset.duration = String(point.duration);
+      circle.dataset.category = point.category;
+      if (isHighlight) circle.dataset.highlight = '1';
+
+      const line = append('line', {
+        x1: centerX,
+        y1: centerY,
+        x2: x,
+        y2: y
+      }, connectorGroup);
+      line.dataset.vx = String(x - centerX);
+      line.dataset.vy = String(y - centerY);
+      line.dataset.baseWidth = '1.1';
+      line.dataset.baseOpacity = '0.7';
+      connectorLines.push(line);
+
+      if (!pointsByDate.has(point.date)) {
+        pointsByDate.set(point.date, []);
+      }
+      pointsByDate.get(point.date).push({ x, y, angle, radius: baseRadius });
+
+      circle.style.cursor = 'pointer';
+      // circle.style.mixBlendMode = 'multiply'; // Removed for cleaner look
+      circle.dataset.baseStrokeWidth = String(baseStrokeWidth);
+
+      circle.addEventListener('mouseenter', () => {
+        circle.setAttribute('opacity', '1');
+        circle.setAttribute('stroke-width', String(baseStrokeWidth + 1));
+        tooltipName.textContent = point.app;
+        tooltipDate.textContent = `날짜: ${point.date}`;
+        const startDate = parseDate(point.start);
+        const hh = startDate.getHours().toString().padStart(2, '0');
+        const mm = startDate.getMinutes().toString().padStart(2, '0');
+        tooltipTime.textContent = `시작: ${hh}:${mm}`;
+        tooltipDuration.textContent = `지속: ${Math.floor(point.duration / 60)}시간 ${point.duration % 60}분`;
+        tooltipCat.textContent = `카테고리: ${point.category}`;
+        tooltip.style.display = 'block';
+      });
+
+      circle.addEventListener('mousemove', (evt) => {
+        const rect = svg.getBoundingClientRect();
+        tooltip.style.left = `${evt.clientX - rect.left + 20}px`;
+        tooltip.style.top = `${evt.clientY - rect.top + 20}px`;
+      });
+
+      circle.addEventListener('mouseleave', () => {
+        circle.setAttribute('opacity', '0.85');
+        circle.setAttribute('stroke-width', circle.dataset.baseStrokeWidth);
+        tooltip.style.display = 'none';
+      });
+      pointCircles.push(circle);
+    });
+
+    pointsByDate.forEach(pointsForDate => {
+      if (pointsForDate.length < 2) return;
+      const sorted = pointsForDate.slice().sort((a, b) => a.angle - b.angle);
+      let d = `M${sorted[0].x.toFixed(2)} ${sorted[0].y.toFixed(2)}`;
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1];
+        const curr = sorted[i];
+        let delta = curr.angle - prev.angle;
+        if (delta < 0) delta += Math.PI * 2;
+        const largeArcFlag = delta > Math.PI ? 1 : 0;
+        d += ` A ${curr.radius.toFixed(2)} ${curr.radius.toFixed(2)} 0 ${largeArcFlag} 1 ${curr.x.toFixed(2)} ${curr.y.toFixed(2)}`;
+      }
+      append('path', {
+        d,
+        stroke: '#9ca3af',
+        'stroke-width': '1.2',
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        opacity: '0.4'
+      }, dayLinkGroup);
+    });
+
+    // 초침(각 점의 연결선)과 원들이 맥박처럼 사라졌다 돌아오는 애니메이션
+    const animateHands = (timestamp) => {
+      const t = timestamp / 1000; // seconds
+      if (inGameMode) {
+        // 게임 중에는 애니메이션 없이 원래 상태 유지
+        connectorLines.forEach(line => {
+          const baseWidth = parseFloat(line.dataset.baseWidth || '1.1');
+          const baseOpacity = parseFloat(line.dataset.baseOpacity || '0.7');
+          line.setAttribute('stroke-width', String(baseWidth));
+          line.setAttribute('opacity', String(baseOpacity));
+        });
+        pointCircles.forEach(circle => {
+          const baseR = parseFloat(circle.dataset.baseR || circle.getAttribute('r') || '3');
+          circle.setAttribute('r', String(baseR));
+        });
+      } else {
+        // 0~1 사이로 오르내리는 펄스
+        const pulse = (Math.sin(t * 1.2) + 1) / 2;
+
+        // 선은 거의 안 보였다가(가늘고 투명) 다시 돌아오는 느낌
+        const thinFactor = 0.15 + 0.85 * pulse; // 0.15~1.0
+        connectorLines.forEach(line => {
+          const baseWidth = parseFloat(line.dataset.baseWidth || '1.1');
+          const baseOpacity = parseFloat(line.dataset.baseOpacity || '0.7');
+          line.setAttribute('stroke-width', String(baseWidth * thinFactor));
+          line.setAttribute('opacity', String(baseOpacity * thinFactor));
+        });
+
+        // 점(원)은 살짝 커졌다가 원래 크기로 돌아오는 맥박
+        const circleScale = 1 + 0.08 * pulse; // 최대 +8%
+        pointCircles.forEach(circle => {
+          const baseR = parseFloat(circle.dataset.baseR || circle.getAttribute('r') || '3');
+          circle.setAttribute('r', String(baseR * circleScale));
+        });
+      }
+
+      requestAnimationFrame(animateHands);
+    };
+    requestAnimationFrame(animateHands);
+
+    // -------- 게임 모드: 과로 청소하기 --------
+    const startButton = document.getElementById('game-start-button');
+    const endButton = document.getElementById('game-end-button');
+    const sidePanel = document.getElementById('side-panel');
+    const missionOverlay = document.getElementById('mission-overlay');
+    const pointMenu = document.getElementById('point-menu');
+    const resetButton = document.getElementById('reset-button');
+    const missionInfoButton = document.getElementById('mission-info-button');
+    const healthScoreDisplay = document.getElementById('health-score-display');
+    const healthBarFill = document.getElementById('health-bar-fill');
+    const overworkScoreDisplay = document.getElementById('overwork-score-display');
+    const overworkBaseline = document.getElementById('overwork-baseline');
+    const missionStatus = document.getElementById('mission-status');
+    const miniClockWrapper = document.getElementById('mini-clock-wrapper');
+    const miniClockSvg = document.getElementById('mini-clock');
+
+    const calculateHealthScore = (score) => {
+      if (initialOverworkScore <= 0) return 100;
+      const ratio = Math.min(Math.max(score / initialOverworkScore, 0), 1);
+      // 선형 대신 약간 보상이 큰 곡선: 과로를 조금만 줄여도 점수가 더 빨리 오른다
+      const eased = Math.pow(1 - ratio, 0.6); // 0~1
+      return Math.round(eased * 100);
+    };
+
+    const updateScoreUI = () => {
+      const health = calculateHealthScore(overworkScore);
+      healthScoreDisplay.textContent = String(health);
+      healthBarFill.style.width = `${health}%`;
+      overworkScoreDisplay.textContent = String(overworkScore);
+      overworkBaseline.textContent = `초기 오버워크 지수: ${initialOverworkScore}`;
+      missionStatus.textContent =
+        health >= 80
+          ? `🎉 미션 성공! 건강 루틴 점수 ${health}점`
+          : `미션: 건강 루틴 점수 80점 이상 달성 (현재 ${health}점)`;
+      if (health >= 80) {
+        missionOverlay.classList.remove('hidden');
+      } else {
+        missionOverlay.classList.add('hidden');
+      }
+    };
+
+    const resetCirclesVisual = () => {
+      dataGroup.querySelectorAll('circle').forEach(circle => {
+        const baseFill = circle.dataset.baseFill;
+        const baseStroke = circle.dataset.baseStroke;
+        const baseOpacity = circle.dataset.baseOpacity;
+        const baseR = circle.dataset.baseR;
+        if (baseFill) circle.setAttribute('fill', baseFill);
+        if (baseStroke) circle.setAttribute('stroke', baseStroke);
+        if (baseOpacity) circle.setAttribute('opacity', baseOpacity);
+        if (baseR) circle.setAttribute('r', baseR);
+        circle.classList.remove('point-rest', 'point-deleted');
+      });
+    };
+
+    const renderMiniClock = (pointList) => {
+      if (!miniClockSvg || !miniClockWrapper) return;
+      while (miniClockSvg.firstChild) {
+        miniClockSvg.removeChild(miniClockSvg.firstChild);
+      }
+      const w = 200;
+      const h = 200;
+      const cx = w / 2;
+      const cy = h / 2;
+      const miniOuter = Math.min(w, h) / 2 - 10;
+      const miniInner = 22;
+      const miniRingSpacing =
+        uniqueDates.length > 1 ? (miniOuter - miniInner) / (uniqueDates.length - 1) : 0;
+
+      const appendMini = (tag, attrs = {}, parent = miniClockSvg) => {
+        const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+        Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+        parent.appendChild(el);
+        return el;
+      };
+
+      // 배경 원
+      appendMini('circle', {
+        cx,
+        cy,
+        r: miniOuter,
+        fill: 'none',
+        stroke: 'rgba(0,0,0,0.08)',
+        'stroke-width': '0.6'
+      });
+      appendMini('circle', {
+        cx,
+        cy,
+        r: miniInner - 4,
+        fill: 'rgba(0,0,0,0.02)'
+      });
+
+      const miniGetRadius = (date) => {
+        if (uniqueDates.length === 1) return miniInner;
+        const idx = uniqueDates.indexOf(date);
+        return miniInner + idx * miniRingSpacing;
+      };
+
+      pointList.forEach(p => {
+        if (p.status === 'deleted') return;
+        const angle = toAngle(p.start);
+        const r = miniGetRadius(p.date);
+        const x = cx + Math.cos(angle) * r;
+        const y = cy + Math.sin(angle) * r;
+
+        const style = getStyleForCategory(p.category);
+        let fill = style.fill;
+        if (p.status === 'rest') fill = '#3b82f6';
+
+        const size = Math.max(1.2, Math.min(4.2, Math.sqrt(p.duration) * 0.22));
+
+        appendMini('circle', {
+          cx: x,
+          cy: y,
+          r: size,
+          fill,
+          opacity: p.status === 'work' ? '0.85' : '0.95',
+          stroke: 'rgba(255,255,255,0.4)',
+          'stroke-width': '0.5'
+        });
+      });
+
+      miniClockWrapper.classList.remove('hidden');
+    };
+
+    let selectedPointId = null;
+    let selectedPointIds = new Set();
+    let suppressNextMenuHide = false;
+    let proximityHighlightId = null;
+
+    const applySelectionVisual = () => {
+      dataGroup.querySelectorAll('circle').forEach(circle => {
+        const id = Number(circle.dataset.id);
+        if (selectedPointIds.has(id)) {
+          circle.classList.add('point-selected');
+        } else {
+          circle.classList.remove('point-selected');
+        }
+      });
+    };
+
+    const hidePointMenu = () => {
+      pointMenu.style.display = 'none';
+      selectedPointId = null;
+    };
+
+    const showPointMenu = (x, y) => {
+      pointMenu.style.left = `${x}px`;
+      pointMenu.style.top = `${y}px`;
+      pointMenu.style.display = 'block';
+    };
+
+    const updatePoint = (pointId, newStatus) => {
+      const target = points.find(p => p.id === pointId);
+      if (!target) return;
+      target.status = newStatus;
+
+      const circle = dataGroup.querySelector(`circle[data-id="${pointId}"]`);
+      if (circle) {
+        if (newStatus === 'deleted') {
+          circle.classList.add('point-deleted');
+        } else if (newStatus === 'rest') {
+          circle.classList.remove('point-deleted');
+          circle.classList.add('point-rest');
+        } else {
+          circle.classList.remove('point-rest', 'point-deleted');
+        }
+      }
+
+      overworkScore = calculateOverworkScore(points);
+      updateScoreUI();
+    };
+
+    dataGroup.addEventListener('click', (evt) => {
+      if (!inGameMode) return;
+      const target = evt.target;
+      if (!(target instanceof SVGCircleElement)) return;
+      const id = Number(target.dataset.id);
+      const point = points.find(p => p.id === id);
+      if (!point) return;
+
+      const rect = svg.getBoundingClientRect();
+      const localX = evt.clientX - rect.left + 12;
+      const localY = evt.clientY - rect.top + 12;
+      selectedPointIds = new Set([id]);
+      selectedPointId = id;
+      applySelectionVisual();
+      showPointMenu(localX, localY);
+    });
+
+    pointMenu.addEventListener('click', (evt) => {
+      const action = evt.target.getAttribute('data-action');
+      if (!action) return;
+      if (action === 'cancel') {
+        hidePointMenu();
+        return;
+      }
+      if (selectedPointIds.size === 0 && selectedPointId != null) {
+        selectedPointIds = new Set([selectedPointId]);
+      }
+      if (selectedPointIds.size === 0) return;
+      if (action === 'rest') {
+        selectedPointIds.forEach(id => updatePoint(id, 'rest'));
+      } else if (action === 'delete') {
+        selectedPointIds.forEach(id => updatePoint(id, 'deleted'));
+      }
+      hidePointMenu();
+    });
+
+    const enterGameMode = () => {
+      if (inGameMode) return;
+      inGameMode = true;
+      sidePanel.classList.remove('hidden');
+      endButton.classList.remove('hidden');
+      startButton.classList.add('hidden');
+      // 상태 초기화
+      originalPoints.forEach((src, idx) => {
+        points[idx] = { ...src };
+      });
+      resetCirclesVisual();
+      overworkScore = calculateOverworkScore(points);
+      updateScoreUI();
+    };
+
+    const exitGameMode = () => {
+      if (!inGameMode) return;
+      // 현재 게임 상태를 우측 하단 미니 과로 시계로 렌더링
+      renderMiniClock(points);
+      inGameMode = false;
+      sidePanel.classList.add('hidden');
+      endButton.classList.add('hidden');
+      startButton.classList.remove('hidden');
+      missionOverlay.classList.add('hidden');
+      // 완전 초기 상태로 복원
+      originalPoints.forEach((src, idx) => {
+        points[idx] = { ...src };
+      });
+      resetCirclesVisual();
+      overworkScore = initialOverworkScore;
+    };
+
+    startButton.addEventListener('click', enterGameMode);
+    endButton.addEventListener('click', exitGameMode);
+
+    resetButton.addEventListener('click', () => {
+      if (!inGameMode) return;
+      originalPoints.forEach((src, idx) => {
+        points[idx] = { ...src };
+      });
+      resetCirclesVisual();
+      overworkScore = calculateOverworkScore(points);
+      updateScoreUI();
+    });
+
+    missionInfoButton.addEventListener('click', () => {
+      alert(
+        '미션: 각 점을 삭제하거나 휴식으로 바꿔서 건강 루틴 점수를 80점 이상으로 올려보세요.\\n' +
+        '- 심야(0~6시) work: +3점\\n- 이른 아침(6~9시) work: +2점\\n- 일반 업무(9~22시) work: +1점\\n- 야근(22~24시) work: +2점'
+      );
+    });
+
+    document.addEventListener('click', (evt) => {
+      if (!inGameMode) return;
+      if (suppressNextMenuHide) {
+        // 브러시 선택 직후 첫 클릭은 무시
+        suppressNextMenuHide = false;
+        return;
+      }
+      if (!pointMenu.contains(evt.target)) {
+        hidePointMenu();
+      }
+    }, true);
+    // --- 드래그 브러시 선택: 점 하나 누르고 그어가며 여러 점 선택 ---
+    let isBrushing = false;
+    let lastBrushClient = null;
+    const BRUSH_RADIUS = 16; // px
+
+    const brushSelectAtEvent = (evt) => {
+      const p = clientToSvg(evt);
+      const r2 = BRUSH_RADIUS * BRUSH_RADIUS;
+      dataGroup.querySelectorAll('circle').forEach(circle => {
+        const cx = parseFloat(circle.getAttribute('cx'));
+        const cy = parseFloat(circle.getAttribute('cy'));
+        const dx = cx - p.x;
+        const dy = cy - p.y;
+        if (dx * dx + dy * dy <= r2) {
+          const id = Number(circle.dataset.id);
+          if (!Number.isNaN(id)) {
+            selectedPointIds.add(id);
+          }
+        }
+      });
+      applySelectionVisual();
+    };
+
+    svg.addEventListener('mousedown', (evt) => {
+      if (!inGameMode) return;
+      // 브러시는 좌클릭만
+      if (evt.button !== 0) return;
+      isBrushing = true;
+      selectedPointIds = new Set();
+      applySelectionVisual();
+      hidePointMenu();
+      lastBrushClient = { x: evt.clientX, y: evt.clientY };
+      brushSelectAtEvent(evt);
+      evt.preventDefault();
+      evt.stopPropagation();
+    });
+
+    svg.addEventListener('mousemove', (evt) => {
+      if (!isBrushing) return;
+      lastBrushClient = { x: evt.clientX, y: evt.clientY };
+      brushSelectAtEvent(evt);
+      evt.preventDefault();
+    });
+
+    const finishBrushSelection = () => {
+      if (selectedPointIds.size === 0 || !lastBrushClient) return;
+      const rect = svg.getBoundingClientRect();
+      const localX = lastBrushClient.x - rect.left + 12;
+      const localY = lastBrushClient.y - rect.top + 12;
+      showPointMenu(localX, localY);
+      suppressNextMenuHide = true;
+    };
+
+    document.addEventListener('mouseup', (evt) => {
+      if (!isBrushing) return;
+      isBrushing = false;
+      finishBrushSelection();
+    });
+
+    svg.addEventListener('mouseleave', () => {
+      if (isBrushing) {
+        isBrushing = false;
+        finishBrushSelection();
+      }
+      // 근접 호버 해제
+      if (proximityHighlightId != null) {
+        const prev = dataGroup.querySelector(`circle[data-id="${proximityHighlightId}"]`);
+        if (prev) {
+          prev.setAttribute('opacity', prev.dataset.baseOpacity || '0.78');
+          prev.setAttribute('stroke-width', prev.dataset.baseStrokeWidth || '1');
+        }
+        proximityHighlightId = null;
+        tooltip.style.display = 'none';
+      }
+    });
+
+    // --- 빨간 점(하이라이트 앱) 근처에 마우스를 가져가면 자동 호버 ---
+    svg.addEventListener('mousemove', (evt) => {
+      if (isBrushing) return; // 브러시 중엔 무시
+      // 직접 circle 위에 올라간 경우는 기존 mouseenter/mouseleave에 맡김
+      if (evt.target instanceof SVGCircleElement) return;
+
+      const rect = svg.getBoundingClientRect();
+      const mouseX = evt.clientX - rect.left;
+      const mouseY = evt.clientY - rect.top;
+      const threshold = 26; // px 안에 오면 호버
+      let nearest = null;
+      let nearestDist2 = threshold * threshold;
+
+      dataGroup.querySelectorAll('circle').forEach(circle => {
+        if (circle.dataset.highlight !== '1') return;
+        const cx = parseFloat(circle.getAttribute('cx'));
+        const cy = parseFloat(circle.getAttribute('cy'));
+        const dx = mouseX - cx;
+        const dy = mouseY - cy;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < nearestDist2) {
+          nearestDist2 = d2;
+          nearest = circle;
+        }
+      });
+
+      if (!nearest) {
+        if (proximityHighlightId != null) {
+          const prev = dataGroup.querySelector(`circle[data-id="${proximityHighlightId}"]`);
+          if (prev) {
+            prev.setAttribute('opacity', prev.dataset.baseOpacity || '0.78');
+            prev.setAttribute('stroke-width', prev.dataset.baseStrokeWidth || '1');
+          }
+          proximityHighlightId = null;
+        }
+        return;
+      }
+
+      const id = nearest.dataset.id;
+      if (proximityHighlightId !== id) {
+        if (proximityHighlightId != null) {
+          const prev = dataGroup.querySelector(`circle[data-id="${proximityHighlightId}"]`);
+          if (prev) {
+            prev.setAttribute('opacity', prev.dataset.baseOpacity || '0.78');
+            prev.setAttribute('stroke-width', prev.dataset.baseStrokeWidth || '1');
+          }
+        }
+        proximityHighlightId = id;
+      }
+
+      const baseStrokeWidth = Number(nearest.dataset.baseStrokeWidth) || 1.2;
+      nearest.setAttribute('opacity', '1');
+      nearest.setAttribute('stroke-width', String(baseStrokeWidth + 0.6));
+
+      // 툴팁 업데이트
+      tooltipName.textContent = nearest.dataset.app || '';
+      tooltipDate.textContent = nearest.dataset.date ? `날짜: ${nearest.dataset.date}` : '';
+      if (nearest.dataset.start) {
+        const d = new Date(nearest.dataset.start);
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        tooltipTime.textContent = `시작: ${hh}:${mm}`;
+      } else {
+        tooltipTime.textContent = '';
+      }
+      if (nearest.dataset.duration) {
+        const dur = Number(nearest.dataset.duration) || 0;
+        tooltipDuration.textContent = `지속: ${Math.floor(dur / 60)}시간 ${dur % 60}분`;
+      } else {
+        tooltipDuration.textContent = '';
+      }
+      tooltipCat.textContent = nearest.dataset.category ? `카테고리: ${nearest.dataset.category}` : '';
+      tooltip.style.display = 'block';
+      tooltip.style.left = `${mouseX + 20}px`;
+      tooltip.style.top = `${mouseY + 20}px`;
+    });
+    // ----- Data Visualization Logic (Expanded) -----
+
+    const vizOverlay = document.getElementById('viz-overlay');
+    const vizToggleBtn = document.getElementById('viz-toggle-button');
+    const vizCloseBtn = document.getElementById('viz-close-button');
+
+    // Toggle Overlay
+    vizToggleBtn.addEventListener('click', () => {
+      vizOverlay.classList.add('active');
+      renderAllCharts();
+    });
+
+    vizCloseBtn.addEventListener('click', () => {
+      vizOverlay.classList.remove('active');
+    });
+
+    // Helper: Color Palette
+    const colors = [
+      '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+      '#ec4899', '#6366f1', '#14b8a6', '#f97316', '#06b6d4'
+    ];
+    const getColor = (i) => colors[i % colors.length];
+
+    // Data Processing
+    function processData() {
+      // 1. App Usage (Total Duration)
+      const appUsage = {};
+      rawUsageEvents.forEach(ev => {
+        appUsage[ev.app] = (appUsage[ev.app] || 0) + Number(ev.duration);
+      });
+      const appData = Object.entries(appUsage)
+        .map(([app, duration]) => ({ app, duration }))
+        .sort((a, b) => b.duration - a.duration);
+
+      // 2. Category Usage
+      const catUsage = {};
+      rawUsageEvents.forEach(ev => {
+        catUsage[ev.category] = (catUsage[ev.category] || 0) + Number(ev.duration);
+      });
+      const catData = Object.entries(catUsage)
+        .map(([category, duration]) => ({ category, duration }))
+        .sort((a, b) => b.duration - a.duration);
+
+      // 3. Hourly Distribution
+      const hourlyData = new Array(24).fill(0);
+      rawUsageEvents.forEach(ev => {
+        const start = new Date(ev.start);
+        const hour = start.getHours();
+        hourlyData[hour] += Number(ev.duration);
+      });
+
+      // 4. Daily Trend
+      const dailyData = {};
+      rawUsageEvents.forEach(ev => {
+        if (!dailyData[ev.date]) dailyData[ev.date] = 0;
+        dailyData[ev.date] += Number(ev.duration);
+      });
+      const lineData = Object.entries(dailyData)
+        .map(([date, duration]) => ({ date, duration }))
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // 5. Heatmap Data (Day x Hour)
+      const heatmapData = Array.from({ length: 7 }, () => Array(24).fill(0));
+      rawUsageEvents.forEach(ev => {
+        const d = new Date(ev.start);
+        const day = d.getDay(); // 0=Sun
+        const hour = d.getHours();
+        heatmapData[day][hour] += Number(ev.duration);
+      });
+
+      // 6. Scatter Data
+      const scatterData = rawUsageEvents.map(ev => {
+        const d = new Date(ev.start);
+        return {
+          x: d.getHours() + d.getMinutes() / 60,
+          y: Number(ev.duration),
+          category: ev.category,
+          app: ev.app
+        };
+      });
+
+      // 7. Stacked Bar Data (Date x Category)
+      const stackedData = {};
+      const categories = catData.map(d => d.category);
+      lineData.forEach(d => {
+        stackedData[d.date] = { date: d.date };
+        categories.forEach(c => stackedData[d.date][c] = 0);
+      });
+      rawUsageEvents.forEach(ev => {
+        if (stackedData[ev.date]) {
+          stackedData[ev.date][ev.category] += Number(ev.duration);
+        }
+      });
+      const stackedArr = Object.values(stackedData).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // Metrics
+      const totalDuration = appData.reduce((sum, d) => sum + d.duration, 0);
+      const topApp = appData[0];
+      const topCategory = catData[0];
+      const mostActiveHour = hourlyData.indexOf(Math.max(...hourlyData));
+
+      return {
+        appData, catData, hourlyData, lineData, heatmapData,
+        scatterData, stackedArr, categories,
+        metrics: { totalDuration, topApp, topCategory, mostActiveHour }
+      };
+    }
+
+    function renderAllCharts() {
+      const data = processData();
+      renderMetrics(data.metrics);
+      renderBubbleChart(data.appData);
+      renderBarChart(data.catData);
+      renderRadialChart(data.hourlyData);
+      renderPieChart(data.catData);
+      renderDonutChart(data.appData);
+      renderLineChart(data.lineData);
+      renderAreaChart(data.lineData);
+      renderHeatmap(data.heatmapData);
+      renderScatterPlot(data.scatterData);
+      renderTreemap(data.appData, data.catData); // Simplified treemap
+      renderStackedBar(data.stackedArr, data.categories);
+      renderRadarChart(data.catData);
+      renderLollipopChart(data.appData);
+      renderPolarChart(data.hourlyData);
+    }
+
+    // --- Renderers ---
+
+    function createSVG(containerId, viewBox = '0 0 400 400') {
+      const container = document.getElementById(containerId);
+      if (!container) return null;
+      container.innerHTML = '';
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('width', '100%');
+      svg.setAttribute('height', '100%');
+      svg.setAttribute('viewBox', viewBox);
+      container.appendChild(svg);
+      return svg;
+    }
+
+    function renderMetrics(metrics) {
+      const container = document.getElementById('viz-metrics');
+      if (!container) return;
+      container.innerHTML = '';
+
+      const items = [
+        { label: 'Total Time', value: `${Math.round(metrics.totalDuration / 60)}h ${metrics.totalDuration % 60}m`, color: 'text-blue-600' },
+        { label: 'Top App', value: metrics.topApp.app, sub: `${metrics.topApp.duration}m`, color: 'text-purple-600' },
+        { label: 'Top Category', value: metrics.topCategory.category, sub: `${metrics.topCategory.duration}m`, color: 'text-green-600' },
+        { label: 'Peak Hour', value: `${metrics.mostActiveHour}:00`, color: 'text-orange-600' }
+      ];
+
+      items.forEach(item => {
+        const div = document.createElement('div');
+        // Simple styling for metric items within the grid
+        div.style.background = '#f9fafb';
+        div.style.borderRadius = '12px';
+        div.style.padding = '10px';
+        div.style.display = 'flex';
+        div.style.flexDirection = 'column';
+        div.style.alignItems = 'center';
+        div.style.justifyContent = 'center';
+        div.style.textAlign = 'center';
+
+        div.innerHTML = `
+          <div style="font-size: 10px; color: #6b7280; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">${item.label}</div>
+          <div style="font-size: 18px; font-weight: 800; color: #111827;">${item.value}</div>
+          ${item.sub ? `<div style="font-size: 11px; color: #9ca3af; margin-top: 2px;">${item.sub}</div>` : ''}
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function renderBubbleChart(data) {
+      const svg = createSVG('viz-bubble');
+      if (!svg) return;
+      const width = 400, height = 400;
+      const centerX = width / 2, centerY = height / 2;
+
+      const nodes = data.slice(0, 20).map(d => ({
+        ...d,
+        r: Math.sqrt(d.duration) * 4,
+        x: centerX + (Math.random() - 0.5) * 50,
+        y: centerY + (Math.random() - 0.5) * 50
+      }));
+
+      for (let i = 0; i < 150; i++) {
+        nodes.forEach(node => {
+          node.x += (centerX - node.x) * 0.05;
+          node.y += (centerY - node.y) * 0.05;
+          nodes.forEach(other => {
+            if (node === other) return;
+            const dx = node.x - other.x;
+            const dy = node.y - other.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const minDist = node.r + other.r + 4;
+            if (dist < minDist) {
+              const angle = Math.atan2(dy, dx);
+              const push = (minDist - dist) / 2;
+              node.x += Math.cos(angle) * push;
+              node.y += Math.sin(angle) * push;
+              other.x -= Math.cos(angle) * push;
+              other.y -= Math.sin(angle) * push;
+            }
+          });
+        });
+      }
+
+      nodes.forEach((node, i) => {
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', node.x);
+        circle.setAttribute('cy', node.y);
+        circle.setAttribute('r', node.r);
+        circle.setAttribute('fill', getColor(i));
+        circle.setAttribute('class', 'chart-circle');
+        circle.style.opacity = '0.8';
+
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        title.textContent = `${node.app}: ${node.duration}m`;
+        circle.appendChild(title);
+        g.appendChild(circle);
+
+        if (node.r > 15) {
+          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          text.setAttribute('x', node.x);
+          text.setAttribute('y', node.y);
+          text.setAttribute('text-anchor', 'middle');
+          text.setAttribute('dy', '0.3em');
+          text.setAttribute('fill', 'white');
+          text.setAttribute('font-size', '10px');
+          text.setAttribute('font-weight', 'bold');
+          text.setAttribute('pointer-events', 'none');
+          text.textContent = node.app.substring(0, 5);
+          g.appendChild(text);
+        }
+        svg.appendChild(g);
+      });
+    }
+
+    function renderBarChart(data) {
+      const svg = createSVG('viz-bar');
+      if (!svg) return;
+      const width = 400, height = 400;
+      const padding = 40;
+      const maxVal = Math.max(...data.map(d => d.duration));
+      const barWidth = (width - padding * 2) / data.length * 0.7;
+
+      data.forEach((d, i) => {
+        const barHeight = (d.duration / maxVal) * (height - padding * 2);
+        const x = padding + i * ((width - padding * 2) / data.length) + 10;
+        const y = height - padding - barHeight;
+
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', y);
+        rect.setAttribute('width', barWidth);
+        rect.setAttribute('height', barHeight);
+        rect.setAttribute('fill', getColor(i));
+        rect.setAttribute('class', 'chart-rect');
+
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        title.textContent = `${d.category}: ${d.duration}m`;
+        rect.appendChild(title);
+        svg.appendChild(rect);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', x + barWidth / 2);
+        text.setAttribute('y', height - padding + 20);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('class', 'chart-text');
+        text.textContent = d.category.split(' ')[0];
+        svg.appendChild(text);
+      });
+    }
+
+    function renderRadialChart(data) {
+      const svg = createSVG('viz-radial');
+      if (!svg) return;
+      const width = 400, height = 400;
+      const cx = width / 2, cy = height / 2;
+      const radius = 150;
+      const maxVal = Math.max(...data);
+
+      [0.3, 0.6, 1].forEach(scale => {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', cx);
+        circle.setAttribute('cy', cy);
+        circle.setAttribute('r', radius * scale);
+        circle.setAttribute('fill', 'none');
+        circle.setAttribute('stroke', '#e5e7eb');
+        circle.setAttribute('class', 'chart-grid-line');
+        svg.appendChild(circle);
+      });
+
+      let d = '';
+      data.forEach((val, i) => {
+        const angle = (i / 24) * Math.PI * 2 - Math.PI / 2;
+        const r = (val / maxVal) * radius;
+        const x = cx + Math.cos(angle) * r;
+        const y = cy + Math.sin(angle) * r;
+        d += (i === 0 ? 'M' : 'L') + `${x},${y} `;
+      });
+      d += 'Z';
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'rgba(59, 130, 246, 0.2)');
+      path.setAttribute('stroke', '#3b82f6');
+      path.setAttribute('stroke-width', 2);
+      path.setAttribute('class', 'chart-path');
+      svg.appendChild(path);
+
+      for (let i = 0; i < 24; i += 6) {
+        const angle = (i / 24) * Math.PI * 2 - Math.PI / 2;
+        const x = cx + Math.cos(angle) * (radius + 20);
+        const y = cy + Math.sin(angle) * (radius + 20);
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', x);
+        text.setAttribute('y', y);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dominant-baseline', 'middle');
+        text.setAttribute('class', 'chart-text');
+        text.textContent = `${i}h`;
+        svg.appendChild(text);
+      }
+    }
+
+    function renderPieChart(data) {
+      const svg = createSVG('viz-pie');
+      if (!svg) return;
+      const width = 400, height = 400;
+      const cx = width / 2, cy = height / 2;
+      const radius = 140;
+      const total = data.reduce((sum, d) => sum + d.duration, 0);
+      let startAngle = 0;
+
+      data.forEach((d, i) => {
+        const sliceAngle = (d.duration / total) * 2 * Math.PI;
+        const endAngle = startAngle + sliceAngle;
+
+        const x1 = cx + radius * Math.cos(startAngle - Math.PI / 2);
+        const y1 = cy + radius * Math.sin(startAngle - Math.PI / 2);
+        const x2 = cx + radius * Math.cos(endAngle - Math.PI / 2);
+        const y2 = cy + radius * Math.sin(endAngle - Math.PI / 2);
+
+        const largeArc = sliceAngle > Math.PI ? 1 : 0;
+        const pathData = `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', pathData);
+        path.setAttribute('fill', getColor(i));
+        path.setAttribute('class', 'chart-path');
+        path.style.stroke = 'white';
+        path.style.strokeWidth = '2';
+
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        title.textContent = `${d.category}: ${Math.round(d.duration / total * 100)}%`;
+        path.appendChild(title);
+        svg.appendChild(path);
+
+        startAngle = endAngle;
+      });
+    }
+
+    function renderDonutChart(data) {
+      const svg = createSVG('viz-donut');
+      if (!svg) return;
+      const width = 400, height = 400;
+      const cx = width / 2, cy = height / 2;
+      const radius = 140;
+      const innerRadius = 80;
+
+      const top5 = data.slice(0, 5);
+      const others = data.slice(5).reduce((sum, d) => sum + d.duration, 0);
+      const chartData = [...top5, { app: 'Others', duration: others }];
+      const total = chartData.reduce((sum, d) => sum + d.duration, 0);
+
+      let startAngle = 0;
+      chartData.forEach((d, i) => {
+        const sliceAngle = (d.duration / total) * 2 * Math.PI;
+        const endAngle = startAngle + sliceAngle;
+
+        // Donut slice calculation
+        const x1 = cx + radius * Math.cos(startAngle - Math.PI / 2);
+        const y1 = cy + radius * Math.sin(startAngle - Math.PI / 2);
+        const x2 = cx + radius * Math.cos(endAngle - Math.PI / 2);
+        const y2 = cy + radius * Math.sin(endAngle - Math.PI / 2);
+
+        const x3 = cx + innerRadius * Math.cos(endAngle - Math.PI / 2);
+        const y3 = cy + innerRadius * Math.sin(endAngle - Math.PI / 2);
+        const x4 = cx + innerRadius * Math.cos(startAngle - Math.PI / 2);
+        const y4 = cy + innerRadius * Math.sin(startAngle - Math.PI / 2);
+
+        const largeArc = sliceAngle > Math.PI ? 1 : 0;
+        const pathData = `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4} Z`;
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', pathData);
+        path.setAttribute('fill', getColor(i));
+        path.setAttribute('class', 'chart-path');
+        path.style.stroke = 'white';
+        path.style.strokeWidth = '2';
+
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        title.textContent = `${d.app}: ${Math.round(d.duration / total * 100)}%`;
+        path.appendChild(title);
+        svg.appendChild(path);
+
+        startAngle = endAngle;
+      });
+
+      // Center Text
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', cx);
+      text.setAttribute('y', cy);
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('dominant-baseline', 'middle');
+      text.setAttribute('font-size', '14px');
+      text.setAttribute('font-weight', 'bold');
+      text.setAttribute('fill', '#374151');
+      text.textContent = 'Top 5 Apps';
+      svg.appendChild(text);
+    }
+
+    function renderLineChart(data) {
+      const svg = createSVG('viz-line');
+      if (!svg) return;
+      const width = 400, height = 400;
+      const padding = 40;
+      const maxVal = Math.max(...data.map(d => d.duration));
+
+      // Grid
+      for (let i = 0; i <= 5; i++) {
+        const y = height - padding - (i / 5) * (height - 2 * padding);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', padding);
+        line.setAttribute('y1', y);
+        line.setAttribute('x2', width - padding);
+        line.setAttribute('y2', y);
+        line.setAttribute('class', 'chart-grid-line');
+        svg.appendChild(line);
+      }
+
+      // Path
+      let d = '';
+      data.forEach((item, i) => {
+        const x = padding + (i / (data.length - 1)) * (width - 2 * padding);
+        const y = height - padding - (item.duration / maxVal) * (height - 2 * padding);
+        d += (i === 0 ? 'M' : 'L') + `${x},${y} `;
+
+        // Point
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', x);
+        circle.setAttribute('cy', y);
+        circle.setAttribute('r', 4);
+        circle.setAttribute('fill', '#3b82f6');
+        circle.setAttribute('class', 'chart-circle');
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        title.textContent = `${item.date}: ${item.duration}m`;
+        circle.appendChild(title);
+        svg.appendChild(circle);
+      });
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', '#3b82f6');
+      path.setAttribute('stroke-width', 3);
+      path.setAttribute('class', 'chart-path');
+      svg.insertBefore(path, svg.lastChild); // Insert before points
+    }
+
+    function renderAreaChart(data) {
+      const svg = createSVG('viz-area');
+      if (!svg) return;
+      const width = 400, height = 400;
+      const padding = 40;
+      const maxVal = Math.max(...data.map(d => d.duration));
+
+      let d = `M ${padding} ${height - padding}`; // Start at bottom-left
+      data.forEach((item, i) => {
+        const x = padding + (i / (data.length - 1)) * (width - 2 * padding);
+        const y = height - padding - (item.duration / maxVal) * (height - 2 * padding);
+        d += `L ${x},${y} `;
+      });
+      d += `L ${width - padding} ${height - padding} Z`; // Close path at bottom-right
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'rgba(59, 130, 246, 0.3)');
+      path.setAttribute('stroke', '#3b82f6');
+      path.setAttribute('stroke-width', 2);
+      path.setAttribute('class', 'chart-path');
+      svg.appendChild(path);
+    }
+
+    function renderHeatmap(data) {
+      const svg = createSVG('viz-heatmap', '0 0 400 400'); // Square aspect ratio
+      if (!svg) return;
+      const width = 400, height = 400;
+      const cellWidth = width / 24;
+      const cellHeight = (height - 40) / 7; // Reserve space for labels
+      const maxVal = Math.max(...data.flat());
+
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+      data.forEach((dayData, dayIdx) => {
+        dayData.forEach((hourVal, hourIdx) => {
+          const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          rect.setAttribute('x', hourIdx * cellWidth);
+          rect.setAttribute('y', dayIdx * cellHeight);
+          rect.setAttribute('width', cellWidth);
+          rect.setAttribute('height', cellHeight);
+          const intensity = hourVal / maxVal;
+          rect.setAttribute('fill', `rgba(59, 130, 246, ${intensity * 0.8 + 0.2})`); // Min opacity 0.2
+          rect.setAttribute('stroke', '#e5e7eb');
+          rect.setAttribute('stroke-width', 0.5);
+
+          const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+          title.textContent = `${days[dayIdx]}, ${hourIdx}h: ${hourVal}m`;
+          rect.appendChild(title);
+          svg.appendChild(rect);
+        });
+      });
+
+      // Add hour labels (simplified)
+      for (let i = 0; i < 24; i += 6) {
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', i * cellWidth + cellWidth / 2);
+        text.setAttribute('y', height - 10);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('class', 'chart-text');
+        text.textContent = `${i}h`;
+        svg.appendChild(text);
+      }
+
+      // Add day labels
+      days.forEach((day, i) => {
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', 10);
+        text.setAttribute('y', i * cellHeight + cellHeight / 2);
+        text.setAttribute('dominant-baseline', 'middle');
+        text.setAttribute('text-anchor', 'start');
+        text.setAttribute('class', 'chart-text');
+        text.style.fill = 'white'; // Contrast against cells
+        text.style.textShadow = '0 1px 2px rgba(0,0,0,0.5)';
+        text.textContent = day[0]; // First letter only
+        svg.appendChild(text);
+      });
+    }
+
+    function renderScatterPlot(data) {
+      const svg = createSVG('viz-scatter');
+      if (!svg) return;
+      const width = 400, height = 400;
+      const padding = 40;
+      const maxX = 24; // Hours
+      const maxY = Math.max(...data.map(d => d.y));
+
+      // Axes
+      const xAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      xAxis.setAttribute('x1', padding); xAxis.setAttribute('y1', height - padding);
+      xAxis.setAttribute('x2', width - padding); xAxis.setAttribute('y2', height - padding);
+      xAxis.setAttribute('stroke', '#6b7280'); svg.appendChild(xAxis);
+
+      const yAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      yAxis.setAttribute('x1', padding); yAxis.setAttribute('y1', padding);
+      yAxis.setAttribute('x2', padding); yAxis.setAttribute('y2', height - padding);
+      yAxis.setAttribute('stroke', '#6b7280'); svg.appendChild(yAxis);
+
+      data.forEach((d, i) => {
+        const x = padding + (d.x / maxX) * (width - 2 * padding);
+        const y = height - padding - (d.y / maxY) * (height - 2 * padding);
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', x);
+        circle.setAttribute('cy', y);
+        circle.setAttribute('r', 4);
+        circle.setAttribute('fill', getStyleForCategory(d.category).fill);
+        circle.setAttribute('class', 'chart-circle');
+        circle.style.opacity = '0.7';
+
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        title.textContent = `${d.app} (${d.category}): ${Math.floor(d.x)}h ${Math.round((d.x % 1) * 60)}m, Duration: ${d.y}m`;
+        circle.appendChild(title);
+        svg.appendChild(circle);
+      });
+    }
+
+    function renderTreemap(appData, catData) {
+      const svg = createSVG('viz-treemap');
+      if (!svg) return;
+      const width = 400, height = 400;
+
+      // Simplified treemap: just stack categories, then apps within categories
+      const totalDuration = appData.reduce((sum, d) => sum + d.duration, 0);
+      let currentX = 0;
+
+      catData.forEach((cat, catIdx) => {
+        const catWidth = (cat.duration / totalDuration) * width;
+        let currentY = 0;
+
+        const appsInCat = appData.filter(app => rawUsageEvents.find(e => e.app === app.app)?.category === cat.category);
+        const totalCatDuration = appsInCat.reduce((sum, d) => sum + d.duration, 0);
+
+        appsInCat.forEach((app, appIdx) => {
+          const appHeight = (app.duration / totalCatDuration) * height;
+
+          const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          rect.setAttribute('x', currentX);
+          rect.setAttribute('y', currentY);
+          rect.setAttribute('width', catWidth);
+          rect.setAttribute('height', appHeight);
+          rect.setAttribute('fill', getColor(catIdx));
+          rect.setAttribute('stroke', 'white');
+          rect.setAttribute('stroke-width', 1);
+          rect.setAttribute('class', 'chart-rect');
+          rect.style.opacity = '0.8';
+
+          const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+          title.textContent = `${app.app} (${cat.category}): ${app.duration}m`;
+          rect.appendChild(title);
+          svg.appendChild(rect);
+
+          if (appHeight > 20 && catWidth > 30) {
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', currentX + 5);
+            text.setAttribute('y', currentY + 15);
+            text.setAttribute('fill', 'white');
+            text.setAttribute('font-size', '8px');
+            text.textContent = app.app.substring(0, Math.floor(catWidth / 8));
+            svg.appendChild(text);
+          }
+
+          currentY += appHeight;
+        });
+        currentX += catWidth;
+      });
+    }
+
+    function renderStackedBar(data, categories) {
+      const svg = createSVG('viz-stacked');
+      if (!svg) return;
+      const width = 400, height = 400;
+      const padding = 40;
+      const barWidth = (width - padding * 2) / data.length * 0.8;
+
+      const maxTotalDuration = Math.max(...data.map(d => categories.reduce((sum, cat) => sum + d[cat], 0)));
+
+      data.forEach((day, dayIdx) => {
+        let currentY = height - padding;
+        let categoryOffset = 0;
+
+        categories.forEach((cat, catIdx) => {
+          const duration = day[cat];
+          if (duration === 0) return;
+
+          const barHeight = (duration / maxTotalDuration) * (height - 2 * padding);
+          const x = padding + dayIdx * ((width - padding * 2) / data.length) + (barWidth / 2);
+          const y = currentY - barHeight;
+
+          const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          rect.setAttribute('x', x - barWidth / 2);
+          rect.setAttribute('y', y);
+          rect.setAttribute('width', barWidth);
+          rect.setAttribute('height', barHeight);
+          rect.setAttribute('fill', getColor(catIdx));
+          rect.setAttribute('class', 'chart-rect');
+          rect.style.opacity = '0.8';
+
+          const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+          title.textContent = `${day.date}, ${cat}: ${duration}m`;
+          rect.appendChild(title);
+          svg.appendChild(rect);
+
+          currentY = y;
+        });
+
+        // Date label
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', padding + dayIdx * ((width - padding * 2) / data.length) + (barWidth / 2));
+        text.setAttribute('y', height - padding + 20);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('class', 'chart-text');
+        text.textContent = day.date.substring(5); // MM-DD
+        svg.appendChild(text);
+      });
+    }
+
+    function renderRadarChart(data) {
+      const svg = createSVG('viz-radar');
+      if (!svg) return;
+      const width = 400, height = 400;
+      const cx = width / 2, cy = height / 2;
+      const radius = 150;
+      const numAxes = data.length;
+      const angleSlice = (Math.PI * 2) / numAxes;
+      const maxVal = Math.max(...data.map(d => d.duration));
+
+      // Draw axes and circles
+      for (let i = 0; i < numAxes; i++) {
+        const angle = angleSlice * i - Math.PI / 2;
+        const x = cx + radius * Math.cos(angle);
+        const y = cy + radius * Math.sin(angle);
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', cx);
+        line.setAttribute('y1', cy);
+        line.setAttribute('x2', x);
+        line.setAttribute('y2', y);
+        line.setAttribute('stroke', '#e5e7eb');
+        line.setAttribute('class', 'chart-grid-line');
+        svg.appendChild(line);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', x * 1.1);
+        text.setAttribute('y', y * 1.1);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dominant-baseline', 'middle');
+        text.setAttribute('class', 'chart-text');
+        text.textContent = data[i].category;
+        svg.appendChild(text);
+      }
+
+      [0.3, 0.6, 1].forEach(scale => {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', cx);
+        circle.setAttribute('cy', cy);
+        circle.setAttribute('r', radius * scale);
+        circle.setAttribute('fill', 'none');
+        circle.setAttribute('stroke', '#e5e7eb');
+        circle.setAttribute('class', 'chart-grid-line');
+        svg.appendChild(circle);
+      });
+
+      // Draw data path
+      let d = '';
+      data.forEach((item, i) => {
+        const angle = angleSlice * i - Math.PI / 2;
+        const r = (item.duration / maxVal) * radius;
+        const x = cx + r * Math.cos(angle);
+        const y = cy + r * Math.sin(angle);
+        d += (i === 0 ? 'M' : 'L') + `${x},${y} `;
+      });
+      d += 'Z';
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'rgba(59, 130, 246, 0.2)');
+      path.setAttribute('stroke', '#3b82f6');
+      path.setAttribute('stroke-width', 2);
+      path.setAttribute('class', 'chart-path');
+      svg.appendChild(path);
+    }
+
+    function renderLollipopChart(data) {
+      const svg = createSVG('viz-lollipop');
+      if (!svg) return;
+      const width = 400, height = 400;
+      const padding = 40;
+      const maxVal = Math.max(...data.map(d => d.duration));
+      const barSpacing = (width - padding * 2) / data.length;
+
+      data.slice(0, 10).forEach((d, i) => { // Top 10 apps
+        const x = padding + i * barSpacing + barSpacing / 2;
+        const y = height - padding - (d.duration / maxVal) * (height - 2 * padding);
+
+        // Line
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', x);
+        line.setAttribute('y1', height - padding);
+        line.setAttribute('x2', x);
+        line.setAttribute('y2', y);
+        line.setAttribute('stroke', getColor(i));
+        line.setAttribute('stroke-width', 2);
+        svg.appendChild(line);
+
+        // Circle
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', x);
+        circle.setAttribute('cy', y);
+        circle.setAttribute('r', 6);
+        circle.setAttribute('fill', getColor(i));
+        circle.setAttribute('class', 'chart-circle');
+
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        title.textContent = `${d.app}: ${d.duration}m`;
+        circle.appendChild(title);
+        svg.appendChild(circle);
+
+        // Label
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', x);
+        text.setAttribute('y', height - padding + 20);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('class', 'chart-text');
+        text.textContent = d.app.substring(0, 5);
+        svg.appendChild(text);
+      });
+    }
+
+    function renderPolarChart(data) {
+      const svg = createSVG('viz-polar');
+      if (!svg) return;
+      const width = 400, height = 400;
+      const cx = width / 2, cy = height / 2;
+      const outerRadius = 150;
+      const innerRadius = 50; // For a donut-like effect
+      const maxVal = Math.max(...data);
+      const angleStep = (Math.PI * 2) / data.length;
+
+      data.forEach((val, i) => {
+        const startAngle = i * angleStep - Math.PI / 2;
+        const endAngle = (i + 1) * angleStep - Math.PI / 2;
+
+        const r = innerRadius + (val / maxVal) * (outerRadius - innerRadius);
+
+        const x1 = cx + innerRadius * Math.cos(startAngle);
+        const y1 = cy + innerRadius * Math.sin(startAngle);
+        const x2 = cx + r * Math.cos(startAngle);
+        const y2 = cy + r * Math.sin(startAngle);
+        const x3 = cx + r * Math.cos(endAngle);
+        const y3 = cy + r * Math.sin(endAngle);
+        const x4 = cx + innerRadius * Math.cos(endAngle);
+        const y4 = cy + innerRadius * Math.sin(endAngle);
+
+        const largeArc = angleStep > Math.PI ? 1 : 0;
+        const pathData = `M ${x1} ${y1} L ${x2} ${y2} A ${r} ${r} 0 ${largeArc} 1 ${x3} ${y3} L ${x4} ${y4} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x1} ${y1} Z`;
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', pathData);
+        path.setAttribute('fill', getColor(i));
+        path.setAttribute('class', 'chart-path');
+        path.style.opacity = '0.8';
+        path.style.stroke = 'white';
+        path.style.strokeWidth = '1';
+
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        title.textContent = `${i}h: ${val}m`;
+        path.appendChild(title);
+        svg.appendChild(path);
+      });
+
+      // Hour labels
+      for (let i = 0; i < 24; i += 3) {
+        const angle = i * angleStep - Math.PI / 2 + angleStep / 2; // Center of the segment
+        const x = cx + (outerRadius + 20) * Math.cos(angle);
+        const y = cy + (outerRadius + 20) * Math.sin(angle);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', x);
+        text.setAttribute('y', y);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dominant-baseline', 'middle');
+        text.setAttribute('class', 'chart-text');
+        text.textContent = `${i}h`;
+        svg.appendChild(text);
+      }
+    }
+  </script>
+</body>
+
+</html>
+```
